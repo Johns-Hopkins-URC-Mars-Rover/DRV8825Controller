@@ -5,6 +5,8 @@ import threading
 import time
 import functools
 import math
+import pigpio
+from time import sleep
 
 
 class StepSize(Enum):
@@ -44,10 +46,9 @@ class DRV8825:
         # setup gpio pins
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.enable_pin, GPIO.OUT)
-        GPIO.output(self.enable_pin, GPIO.HIGH)
+        # GPIO.output(self.enable_pin, GPIO.HIGH)
         GPIO.setup(self.direction_pin, GPIO.OUT)
-        GPIO.setup(self.step_pin, GPIO.OUT)
-        GPIO.setup(self.enable_pin, GPIO.OUT)
+        # GPIO.setup(self.step_pin, GPIO.OUT)
         for pin in self.mode_pins:
             GPIO.setup(pin, GPIO.OUT)
 
@@ -80,13 +81,49 @@ class DRV8825:
 
         GPIO.output(self.enable_pin, GPIO.HIGH)
 
-    def _speed_up(self, rpm: int):
-        step_delay = self.STEP_DELAY
+    def _speed_up(self, rpm: int, start_step_delay = 100, acceleration_time = 3):
+        #start_step_delay = 1s /10 ms = 100
+
+        #step_delay = self.STEP_DELAY
         min_step_delay = (rpm * self.STEPS_PER_REVOLUTION) / 60 / 2
-        print(step_delay, min_step_delay, rpm)
-        min_step_delay = .000001
+        print(start_step_delay, min_step_delay, rpm)
+        # min_step_delay = .000001
         rep = 1
-        while not self.run_thread.is_stopped():
+        
+        # I saw all examples doing this so I decided to copy this
+        pi = pigpio.pi()
+        if not pi.connected:
+            exit(0)
+
+        #not sure if the following code is necessary but the example has it
+        #(seem to be already set up in class)
+        #but I don't know since it's pi (new)
+        pi.set_mode(self.direction_pin, pigpio.OUTPUT)
+        pi.set_mode(self.step_pin, pigpio.OUTPUT)
+        # pi.set_mode(self.enable_pin, pigpio.OUTPUT)
+
+        print("setting hardware pwm")
+        for i in range(100, 5000, 100):
+            print(i)
+            pi.hardware_PWM(self.step_pin, i, 250000)
+            time.sleep(3)
+
+        # pi.set_PWM_dutycycle(self.step_pin, 255) # PWM 1/2 on
+        # for i in range(1000):
+        #     # current_speed = start_step_delay - (start_step_delay - min_step_delay) * i / 1000
+        # pi.set_PWM_frequency(self.step_pin, 100)
+        #     sleep(acceleration_time/1000)
+        time.sleep(10)
+        pi.write(self.step_pin, 0)
+
+        # while True:
+        #     pi.write(self.step_pin, 1)
+        #     time.sleep(self.STEP_DELAY)
+        #     pi.write(self.step_pin, 0)
+        #     time.sleep(self.STEP_DELAY)
+
+        '''
+        
             try:
                 delay = max(10, int(step_delay / 1.4174580574035645e-05))
                 if step_delay > min_step_delay:
@@ -105,6 +142,7 @@ class DRV8825:
                 self.run_thread.stop()
                 self.cleanup()
                 quit()
+        '''
 
         # GPIO.output(self.enable_pin, GPIO.HIGH)
 
