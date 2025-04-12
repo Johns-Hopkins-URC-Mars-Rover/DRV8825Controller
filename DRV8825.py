@@ -5,6 +5,7 @@ import threading
 import time
 import functools
 import math
+from time import sleep
 
 
 class StepSize(Enum):
@@ -29,7 +30,7 @@ class RunThread(threading.Thread):
 
 
 class DRV8825:
-    STEP_DELAY = .005
+    STEP_DELAY = .0005
     DELTA_STEP_DELAY = .000001
     STEPS_PER_REVOLUTION = 200
 
@@ -44,10 +45,9 @@ class DRV8825:
         # setup gpio pins
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.enable_pin, GPIO.OUT)
-        GPIO.output(self.enable_pin, GPIO.HIGH)
+        # GPIO.output(self.enable_pin, GPIO.HIGH)
         GPIO.setup(self.direction_pin, GPIO.OUT)
-        GPIO.setup(self.step_pin, GPIO.OUT)
-        GPIO.setup(self.enable_pin, GPIO.OUT)
+        # GPIO.setup(self.step_pin, GPIO.OUT)
         for pin in self.mode_pins:
             GPIO.setup(pin, GPIO.OUT)
 
@@ -80,33 +80,23 @@ class DRV8825:
 
         GPIO.output(self.enable_pin, GPIO.HIGH)
 
-    def _speed_up(self, rpm: int):
-        step_delay = self.STEP_DELAY
-        min_step_delay = (rpm * self.STEPS_PER_REVOLUTION) / 60 / 2
-        print(step_delay, min_step_delay, rpm)
-        min_step_delay = .000001
-        rep = 1
-        while not self.run_thread.is_stopped():
-            try:
-                delay = max(10, int(step_delay / 1.4174580574035645e-05))
-                if step_delay > min_step_delay:
-                    step_delay -= self.DELTA_STEP_DELAY * (min(1, (500/rep) if delay < 15 else 1))
-                    step_delay = max(step_delay, min_step_delay)
-                GPIO.output(self.step_pin, GPIO.HIGH)
+    def _speed_up(self, rpm: int, start_step_delay = 100, acceleration_time = 3):
+        min_step_delay = 1 / ((rpm * self.STEPS_PER_REVOLUTION) / 60 * 2)
 
-                for _ in range(delay):
-                    print(delay)
-                GPIO.output(self.step_pin, GPIO.LOW)
-                for _ in range(delay):
-                    print(delay)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.step_pin, GPIO.OUT)
 
-                rep+=1
-            except KeyboardInterrupt:
-                self.run_thread.stop()
-                self.cleanup()
-                quit()
+        # min_step_delay = 350E-6
+        i = 0
+        delay = self.STEP_DELAY
+        while True:
+            if i % 20 == 0 and delay > min_step_delay:
+                delay -= self.DELTA_STEP_DELAY
 
-        # GPIO.output(self.enable_pin, GPIO.HIGH)
+            GPIO.output(self.step_pin, GPIO.HIGH)
+            time.sleep(delay)
+            GPIO.output(self.step_pin, GPIO.LOW)
+            time.sleep(delay)
 
     def move_pos(self, rad: float, clockwise: bool = True):
         GPIO.output(self.enable_pin, GPIO.HIGH)
@@ -117,15 +107,17 @@ class DRV8825:
 
     def _pos_to(self, rad: float):
         num_steps: int = math.floor((self.STEPS_PER_REVOLUTION / (2 * math.pi)) * rad)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.step_pin, GPIO.OUT)
         for _ in range(num_steps):
             try:
+                GPIO.setmode(GPIO.BCM)
                 GPIO.output(self.step_pin, GPIO.HIGH)
                 time.sleep(self.STEP_DELAY)
                 GPIO.output(self.step_pin, GPIO.LOW)
                 time.sleep(self.STEP_DELAY)
             except KeyboardInterrupt:
                 self.run_thread.stop()
-                self.cleanup()
                 quit()
 
     @clear_motor
