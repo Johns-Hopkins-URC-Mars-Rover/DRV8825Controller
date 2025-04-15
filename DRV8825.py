@@ -2,11 +2,9 @@ import RPi.GPIO as GPIO
 from typing import Tuple, Callable, Optional, Any
 from enum import Enum
 import threading
-import time
+from time import sleep
 import functools
 import math
-from time import sleep
-
 
 class StepSize(Enum):
     full = (0, 0, 0)
@@ -71,39 +69,45 @@ class DRV8825:
             GPIO.output(self.mode_pins[pin], step_size.value[pin])
 
     # @clear_motor
-    def move_speed(self, rpm: int = 60, clockwise: bool = True):
+    def move_speed(self, rpm: int = 60, time: float = 1, clockwise: bool = True):
         GPIO.output(self.enable_pin, GPIO.LOW)
         GPIO.output(self.direction_pin, clockwise)
 
-        self.run_thread = RunThread(target=self._speed_up, args=(rpm, ))
-        self.run_thread.start()
+        self._speed_up(rpm, time)
+
+        # TODO: do we need this? (async for speed)
+        # self.run_thread = RunThread(target=self._speed_up, args=(rpm, ))
+        # self.run_thread.start()
 
         GPIO.output(self.enable_pin, GPIO.HIGH)
 
-    def _speed_up(self, rpm: int, start_step_delay = 100, acceleration_time = 3):
+    def _speed_up(self, rpm: int, time: float):
         min_step_delay = 1 / ((rpm * self.STEPS_PER_REVOLUTION) / 60 * 2)
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.step_pin, GPIO.OUT)
 
         # min_step_delay = 350E-6
-        i = 0
-        delay = self.STEP_DELAY
-        while True:
-            if i % 20 == 0 and delay > min_step_delay:
+        i = 1
+        total_time = 0
+        delay = max(self.STEP_DELAY, min_step_delay)
+        while total_time < time:
+            if i % 30 == 0 and delay > min_step_delay:
                 delay -= self.DELTA_STEP_DELAY
+                print(delay)
 
             GPIO.output(self.step_pin, GPIO.HIGH)
-            time.sleep(delay)
+            sleep(delay)
             GPIO.output(self.step_pin, GPIO.LOW)
-            time.sleep(delay)
+            sleep(delay)
+            total_time += delay * 2
+            i+=1
 
     def move_pos(self, rad: float, clockwise: bool = True):
         GPIO.output(self.enable_pin, GPIO.HIGH)
         GPIO.output(self.direction_pin, clockwise)
 
-        self.run_thread = RunThread(target=self._pos_to, args=(rad, ))
-        self.run_thread.start()
+        self._pos_to(rad)
 
     def _pos_to(self, rad: float):
         num_steps: int = math.floor((self.STEPS_PER_REVOLUTION / (2 * math.pi)) * rad)

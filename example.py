@@ -3,6 +3,10 @@ import time
 import math
 
 motor = DRV8825(13, 18, 24, 10, 9, 11)
-motor.move_speed(rpm=400)
-# motor.move_pos(2*math.pi, True)
+motor.move_speed(rpm=400, time=10)
+# alt = True
+# for _ in range(10):
+#     motor.move_pos(7*math.pi, alt)
+#     alt = not alt
+
 # motor.cleanup()
