@@ -50,6 +50,7 @@ class DRV8825:
             GPIO.setup(pin, GPIO.OUT)
 
         self.run_thread: Optional[RunThread] = None
+        self._cur_speed = 0
 
     @staticmethod
     def clear_motor(func: Callable[[...], Any]):
@@ -57,7 +58,7 @@ class DRV8825:
         def wrapper(self, *args, **kwargs):
             if self.run_thread and not self.run_thread.is_stopped():
                 self.run_thread.stop()
-                time.sleep(self.STEP_DELAY)
+                sleep(self.STEP_DELAY)
                 GPIO.output(self.enable_pin, GPIO.LOW)
 
             return func(self, *args, **kwargs)
@@ -73,28 +74,37 @@ class DRV8825:
         GPIO.output(self.enable_pin, GPIO.LOW)
         GPIO.output(self.direction_pin, clockwise)
 
-        self._speed_up(rpm, time)
+        if not self.run_thread or self.run_thread.is_stopped():
+            self._cur_speed = rpm
+            self.run_thread = RunThread(target=self._speed_up, args=(time, ))
+            self.run_thread.start()
+        else:
+            self._cur_speed = rpm
 
-        # TODO: do we need this? (async for speed)
-        # self.run_thread = RunThread(target=self._speed_up, args=(rpm, ))
-        # self.run_thread.start()
 
         GPIO.output(self.enable_pin, GPIO.HIGH)
 
-    def _speed_up(self, rpm: int, time: float):
-        min_step_delay = 1 / ((rpm * self.STEPS_PER_REVOLUTION) / 60 * 2)
+    def _speed_up(self, time: float):
+        min_step_delay = 1 / ((self._cur_speed * self.STEPS_PER_REVOLUTION) / 60 * 2)
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.step_pin, GPIO.OUT)
 
-        # min_step_delay = 350E-6
         i = 1
         total_time = 0
+        speed = self._cur_speed
         delay = max(self.STEP_DELAY, min_step_delay)
         while total_time < time:
+            if self.run_thread.is_stopped():
+                break
+
+            if self._cur_speed != speed:
+                speed = self._cur_speed
+                min_step_delay = 1 / ((speed * self.STEPS_PER_REVOLUTION) / 60 * 2)
+                delay = max(self.STEP_DELAY, min_step_delay)
+
             if i % 30 == 0 and delay > min_step_delay:
                 delay -= self.DELTA_STEP_DELAY
-                print(delay)
 
             GPIO.output(self.step_pin, GPIO.HIGH)
             sleep(delay)
