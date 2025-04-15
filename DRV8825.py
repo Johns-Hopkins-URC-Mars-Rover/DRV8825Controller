@@ -69,14 +69,13 @@ class DRV8825:
         for pin in range(3):
             GPIO.output(self.mode_pins[pin], step_size.value[pin])
 
-    # @clear_motor
-    def move_speed(self, rpm: int = 60, time: float = 1, clockwise: bool = True):
+    def move_speed(self, rpm: int = 60, clockwise: bool = True):
         GPIO.output(self.enable_pin, GPIO.LOW)
         GPIO.output(self.direction_pin, clockwise)
 
         if not self.run_thread or self.run_thread.is_stopped():
             self._cur_speed = rpm
-            self.run_thread = RunThread(target=self._speed_up, args=(time, ))
+            self.run_thread = RunThread(target=self._speed_up, args=( ))
             self.run_thread.start()
         else:
             self._cur_speed = rpm
@@ -84,24 +83,23 @@ class DRV8825:
 
         GPIO.output(self.enable_pin, GPIO.HIGH)
 
-    def _speed_up(self, time: float):
+    def _speed_up(self):
         min_step_delay = 1 / ((self._cur_speed * self.STEPS_PER_REVOLUTION) / 60 * 2)
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.step_pin, GPIO.OUT)
 
         i = 1
-        total_time = 0
         speed = self._cur_speed
         delay = max(self.STEP_DELAY, min_step_delay)
-        while total_time < time:
+        while True:
             if self.run_thread.is_stopped():
                 break
 
             if self._cur_speed != speed:
                 speed = self._cur_speed
                 min_step_delay = 1 / ((speed * self.STEPS_PER_REVOLUTION) / 60 * 2)
-                delay = max(self.STEP_DELAY, min_step_delay)
+                delay = max(delay, min_step_delay)
 
             if i % 30 == 0 and delay > min_step_delay:
                 delay -= self.DELTA_STEP_DELAY
@@ -110,7 +108,6 @@ class DRV8825:
             sleep(delay)
             GPIO.output(self.step_pin, GPIO.LOW)
             sleep(delay)
-            total_time += delay * 2
             i+=1
 
     def move_pos(self, rad: float, clockwise: bool = True):
@@ -127,9 +124,9 @@ class DRV8825:
             try:
                 GPIO.setmode(GPIO.BCM)
                 GPIO.output(self.step_pin, GPIO.HIGH)
-                time.sleep(self.STEP_DELAY)
+                sleep(self.STEP_DELAY)
                 GPIO.output(self.step_pin, GPIO.LOW)
-                time.sleep(self.STEP_DELAY)
+                sleep(self.STEP_DELAY)
             except KeyboardInterrupt:
                 self.run_thread.stop()
                 quit()
