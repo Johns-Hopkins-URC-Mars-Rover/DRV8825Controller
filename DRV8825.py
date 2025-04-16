@@ -99,7 +99,7 @@ class DRV8825:
             if self._cur_speed != speed:
                 speed = self._cur_speed
                 min_step_delay = 1 / ((speed * self.STEPS_PER_REVOLUTION) / 60 * 2)
-                delay = max(delay, min_step_delay)
+                delay = min_step_delay
 
             if i % 30 == 0 and delay > min_step_delay:
                 delay -= self.DELTA_STEP_DELAY
