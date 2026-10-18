@@ -4,17 +4,16 @@ from DRV8825_PWM import DRV8825_PWM
 
 
 motor = DRV8825_PWM(
-    enable_pin=24,
-    direction_pin=13,
-    # Hardware PWM channel 0 is GPIO 18 on the supported Raspberry Pi setup.
-    pwm_channel=0,
+    enable_pin=17,
+    direction_pin=27,
+    pwm_channel=1,
     pwm_chip=0,
     microsteps=8,
+    duty_cycle=50,
 )
 
 try:
-    motor.set_rpm(15)
-    time.sleep(3)
-    motor.move_degrees(360, clockwise=False, rpm=10)
+    motor.move_at_for(30, 2)
+
 finally:
     motor.cleanup()

@@ -23,6 +23,7 @@ class TB6600:
     MOTOR_STEPS_PER_REVOLUTION = 200
     MOTOR_STEP_ANGLE_DEGREES = 1.8
     DEFAULT_DUTY_CYCLE = 50.0
+    PWM_DELAY = 1.01
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class TB6600:
         clockwise_direction_high: bool = True,
         gpio: Optional[Any] = None,
         pwm: Optional[Any] = None,
+        delay: float = PWM_DELAY,
     ) -> None:
         """Initialize the driver and leave it stopped.
 
@@ -68,6 +70,7 @@ class TB6600:
             if pwm is not None
             else self._create_pwm(pwm_channel, pwm_chip)
         )
+        self.delay = delay
         self._owns_pwm = pwm is None
         self._rpm = 0.0
         self._frequency = 0
@@ -131,7 +134,7 @@ class TB6600:
             self.stop()
             return
 
-        frequency = round(rpm * self.steps_per_revolution / 60.0)
+        frequency = rpm * self.steps_per_revolution / 60.0
         if frequency < 1:
             raise ValueError("rpm is too low to produce a 1 Hz PWM signal")
 
@@ -141,6 +144,10 @@ class TB6600:
         self._set_enabled(True)
         self._rpm = rpm
         self._frequency = frequency
+
+    def move_at_for(self, rpm: float, seconds: float, clockwise: bool = True):
+        self.set_rpm(rpm, clockwise)
+        time.sleep(seconds + self.delay)
 
     def move_degrees(
         self,
@@ -164,13 +171,19 @@ class TB6600:
         else:
             self.set_direction(clockwise)
 
-        steps = round(degrees / self.MOTOR_STEP_ANGLE_DEGREES * self.microsteps)
+        steps = degrees * self.steps_per_revolution / 360
         if steps == 0:
             self.stop()
             return
 
         try:
-            time.sleep(steps / self._frequency)
+            print(steps)
+            print(self._frequency)
+            print(steps/ self._frequency)
+            start_time = time.perf_counter()
+            time.sleep(self.delay + (steps / self._frequency))
+            end_time = time.perf_counter()
+            print(end_time-start_time)
         finally:
             self.stop()
 
